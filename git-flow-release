@@ -164,9 +164,7 @@ cmd_start() {
 	if flag fetch; then
 		git fetch -q "$ORIGIN" "$DEVELOP_BRANCH"
 	fi
-	if has "$ORIGIN/$DEVELOP_BRANCH" "$(git_remote_branches)"; then
-		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
-	fi
+	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
 	# create branch
 	git checkout -b "$BRANCH" "$BASE"
@@ -236,12 +234,8 @@ cmd_finish() {
 		git fetch -q "$ORIGIN" "$DEVELOP_BRANCH" || \
 		  die "Could not fetch $DEVELOP_BRANCH from $ORIGIN."
 	fi
-	if has "$ORIGIN/$MASTER_BRANCH" "$(git_remote_branches)"; then
-		require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
-	fi
-	if has "$ORIGIN/$DEVELOP_BRANCH" "$(git_remote_branches)"; then
-		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
-	fi
+	require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
+	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
 	# try to merge into master
 	# in case a previous attempt to finish this release branch has failed,
@@ -300,14 +294,14 @@ cmd_finish() {
 	fi
 
 	if flag push; then
-		git push "$ORIGIN" "$DEVELOP_BRANCH" || \
-			die "Could not push to $DEVELOP_BRANCH from $ORIGIN."
 		git push "$ORIGIN" "$MASTER_BRANCH" || \
 			die "Could not push to $MASTER_BRANCH from $ORIGIN."
 		if noflag notag; then
 			git push --tags "$ORIGIN" || \
 			  die "Could not push tags to $ORIGIN."
 		fi
+		git push "$ORIGIN" "$DEVELOP_BRANCH" || \
+			die "Could not push to $DEVELOP_BRANCH from $ORIGIN."
 		git push "$ORIGIN" :"$BRANCH" || \
 			die "Could not delete the remote $BRANCH in $ORIGIN."
 	fi

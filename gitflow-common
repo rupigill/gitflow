@@ -51,7 +51,7 @@ escape() {
 # set logic
 has() {
 	local item=$1; shift
-	echo " $@ " | grep -q " $(escape $item) "
+	echo "$@" | grep -qwF "$item"
 }
 
 # basic math

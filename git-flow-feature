@@ -304,19 +304,16 @@ cmd_finish() {
 	# sanity checks
 	require_clean_working_tree
 
-	# update local repo with remote changes first, if asked
 	if has "$ORIGIN/$BRANCH" "$(git_remote_branches)"; then
+		# update local repo with remote changes first, if asked
 		if flag fetch; then
 			git fetch -q "$ORIGIN" "$BRANCH"
 		fi
-	fi
 
-	if has "$ORIGIN/$BRANCH" "$(git_remote_branches)"; then
 		require_branches_equal "$BRANCH" "$ORIGIN/$BRANCH"
 	fi
-	if has "$ORIGIN/$DEVELOP_BRANCH" "$(git_remote_branches)"; then
-		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
-	fi
+
+	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
 	# if the user wants to rebase, do that first
 	if flag rebase; then
