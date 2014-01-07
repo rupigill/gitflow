@@ -193,7 +193,9 @@ parse_remote_name() {
 
 cmd_start() {
 	DEFINE_boolean fetch false 'fetch from origin before performing local operation' F
+	DEFINE_integer devextn 0 'Telephone extension of developer to use as "incrementalVersion" component in the feature pom version' N
 	parse_args "$@"
+	eval set -- "${FLAGS_ARGV}"
 	BASE=${2:-$DEVELOP_BRANCH}
 	require_name_arg
 
@@ -220,6 +222,28 @@ cmd_start() {
 	echo "Summary of actions:"
 	echo "- A new branch '$BRANCH' was created, based on '$BASE'"
 	echo "- You are now on branch '$BRANCH'"
+	echo
+
+	local devextn
+	if [ "$FLAGS_devextn" -eq 0 ]; then
+		devextn=$(git config --get gitflow.skopos.devextn)
+		[ "$devextn" = "" ] && devextn=0
+	else
+		devextn=$FLAGS_devextn
+	fi
+
+	if [ $devextn -ne 0 ]; then
+		local toppom=$(get_top_pom_path)
+		if [ "$toppom" != "" ]; then
+			local curver=$(get_current_pom_version $toppom)
+			echo "curver = $curver"
+			local newver=$(echo $curver | sed -E 's/\.[[:digit:]]+$/.'$devextn'/')
+			set_pom_version $toppom $newver
+		fi
+	fi
+
+	git push "$ORIGIN" "$BRANCH"
+
 	echo ""
 	echo "Now, start committing on your feature. When done, use:"
 	echo ""
@@ -305,12 +329,36 @@ cmd_finish() {
 		fi
 	fi
 
+
+	# What is the pom version on the feature branch?
+	git checkout "$BRANCH"
+
+	local toppom=$(get_top_pom_path)
+	local featpomver
+	if [ "$toppom" != "" ]; then
+		featpomver=$(get_current_pom_version $toppom)
+	fi
+
 	# merge into BASE
 	git checkout "$DEVELOP_BRANCH"
+
+	local devpomver
+	if [ "$toppom" != "" ]; then
+		devpomver=$(get_current_pom_version $toppom)
+		devbasever=$(echo $devpomver | sed -E 's/\.[:digit:]+$//')
+		featbasever=$(echo $featpomver | sed -E 's/\.[:digit:]+$//')
+		if [ "$featbasever" != "$devbasever" ]; then
+			# A release branch must have been started after the feature was started; 
+			# Set develop branch pom version to same as feature pom version temporarily to avoid merge conflicts; reset the 
+			# version back after merge
+			set_pom_version $toppom $featpomver
+		fi
+	fi
+
 	if [ "$(git rev-list -n2 "$DEVELOP_BRANCH..$BRANCH" | wc -l)" -eq 1 ]; then
-		git merge --ff "$BRANCH"
+		git merge --no-edit --ff "$BRANCH"
 	else
-		git merge --no-ff "$BRANCH"
+		git merge --no-edit --no-ff "$BRANCH"
 	fi
 
 	if [ $? -ne 0 ]; then
@@ -329,6 +377,10 @@ cmd_finish() {
 		exit 1
 	fi
 
+	if [ "$featpomver" != "$devpomver" ]; then
+		set_pom_version $toppom $devpomver
+	fi
+
 	# when no merge conflict is detected, just clean up the feature branch
 	helper_finish_cleanup
 }
@@ -338,11 +390,8 @@ helper_finish_cleanup() {
 	require_branch "$BRANCH"
 	require_clean_working_tree
 
-	# delete branch
-	if flag fetch; then
-		git push "$ORIGIN" ":refs/heads/$BRANCH"
-	fi
-	
+	# delete remote branch
+	git push "$ORIGIN" ":refs/heads/$BRANCH"
 	
 	if noflag keep; then
 		git branch -d "$BRANCH"
@@ -353,9 +402,9 @@ helper_finish_cleanup() {
 	echo "- The feature branch '$BRANCH' was merged into '$DEVELOP_BRANCH'"
 	#echo "- Merge conflicts were resolved"		# TODO: Add this line when it's supported
 	if flag keep; then
-		echo "- Feature branch '$BRANCH' is still available"
+		echo "- Feature branch '$BRANCH' is still available locally"
 	else
-		echo "- Feature branch '$BRANCH' has been removed"
+		echo "- Feature branch '$BRANCH' has been removed (both local and remote)"
 	fi
 	echo "- You are now on branch '$DEVELOP_BRANCH'"
 	echo

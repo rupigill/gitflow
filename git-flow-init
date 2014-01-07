@@ -294,6 +294,31 @@ cmd_default() {
 	fi
 
 
+	if flag force || \
+	  ! git config --get gitflow.skopos.devextn >/dev/null 2>&1; then
+		echo
+		echo "Skopos specific configuration:"
+		printf "Last four digits of your Skopos phone number? (enter nothing if you want to supply this via -N flag upon start of a feature) "
+		if noflag defaults; then
+			while read answer; do
+				if [ "$answer" != "" ]; then
+					if [ "$answer" -eq "$answer" ] 2>/dev/null; then
+						break
+					else
+						echo "error: Not a number" >&2
+						printf "Please enter last four digits of your Skopos phone number: "
+					fi
+				else
+					break
+				fi
+			done
+		else
+			printf "\n"
+		fi
+		[ "$answer" != "" ] && git config gitflow.skopos.devextn "$answer"
+
+	fi
+
 	# TODO: what to do with origin?
 }
 

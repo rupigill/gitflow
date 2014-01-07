@@ -310,3 +310,36 @@ require_branches_equal() {
 		fi
 	fi
 }
+
+#
+# Maven support commands
+#
+
+get_top_pom_path() {
+	local topdir=$(dirname $(git rev-parse --git-dir))
+	[ -f $topdir/pom.xml ] && echo $topdir/pom.xml;
+}
+
+get_current_pom_version() {
+	local toppom="$1"
+        mvn -f $toppom org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version 2>&1 | grep -E '^\d+(\.\d+)*(-.+)?$'
+}
+
+get_active_branch() {
+	git branch | grep '^* ' | cut -d' ' -f2
+}
+
+set_pom_version() {
+	local toppom="$1"
+	local newver="$2"
+	local curbranch=$(get_active_branch)
+	echo "Updating pom versions on $curbranch to $newver..."
+	if mvn -f $toppom versions:set -DnewVersion=$newver >/dev/null 2>&1; then
+		git add $(find $(dirname $toppom) -name pom.xml | grep -v '/target/') 
+		[ "$COMMIT_POM_SET_VERSION" != "0" ] && git commit -m "Updated pom versions on $curbranch to $newver"
+		echo "- POM versions on $curbranch have been updated to $newver"
+	else
+		echo "WARN: Unable to update pom versions on $curbranch to $newver";
+		echo "- Please fix/update pom versions on $curbranch manually."
+	fi
+}
