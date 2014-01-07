@@ -26,7 +26,7 @@
 # those of the authors and should not be interpreted as representing official
 # policies, either expressed or implied, of Vincent Driessen.
 #
-prefix=/usr/local
+prefix=/usr/local/Cellar/git-flow/0.4.1/libexec
 
 # files that need mode 755
 EXEC_FILES=git-flow
@@ -43,7 +43,11 @@ SCRIPT_FILES+=gitflow-shFlags
 
 all:
 	@echo "usage: make install"
+	@echo "       make distrib"
 	@echo "       make uninstall"
+
+distrib: 
+	tar -cvzLf gitflow-xxx.tgz $(EXEC_FILES) $(SCRIPT_FILES)
 
 install:
 	@test -f gitflow-shFlags || (echo "Run 'git submodule init && git submodule update' first." ; exit 1 )
@@ -51,6 +55,7 @@ install:
 	install -m 0755 $(EXEC_FILES) $(prefix)/bin
 	install -m 0644 $(SCRIPT_FILES) $(prefix)/bin
 
+	
 uninstall:
 	test -d $(prefix)/bin && \
 	cd $(prefix)/bin && \
