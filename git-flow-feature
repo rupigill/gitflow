@@ -237,7 +237,7 @@ cmd_start() {
 		if [ "$toppom" != "" ]; then
 			local curver=$(get_current_pom_version $toppom)
 			echo "curver = $curver"
-			local newver=$(echo $curver | sed -E 's/\.[[:digit:]]+$/.'$devextn'/')
+			local newver=$(set_incr_version $curver $devextn)
 			set_pom_version $toppom $newver
 		fi
 	fi
@@ -342,8 +342,8 @@ cmd_finish() {
 	local devpomver
 	if [ "$toppom" != "" ]; then
 		devpomver=$(get_current_pom_version $toppom)
-		devbasever=$(echo $devpomver | sed -E 's/\.[:digit:]+$//')
-		featbasever=$(echo $featpomver | sed -E 's/\.[:digit:]+$//')
+		devbasever=$(echo $devpomver | sed -E 's/\.[[:digit:]]+(-.+)?$//')
+		featbasever=$(echo $featpomver | sed -E 's/\.[[:digit:]]+(-.+)?$//')
 		if [ "$featbasever" != "$devbasever" ]; then
 			# A release branch must have been started after the feature was started; 
 			# Set develop branch pom version to same as feature pom version temporarily to avoid merge conflicts; reset the 

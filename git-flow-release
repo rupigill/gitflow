@@ -180,8 +180,8 @@ cmd_start() {
 
 		local curver=$(get_current_pom_version $toppom)
 		echo "Current version: " $curver
-		local curminor=$(echo $curver | cut -d'.' -f2)
-		local newver="$(echo $curver | cut -d'.' -f1).$(expr $curminor + 1).0"
+		local curminor=$(get_minor_version $curver)
+		local newver=$(set_minor_version $curver $(expr $curminor + 1))
 		set_pom_version $toppom $newver
 
 		git push "$ORIGIN" "$BASE"

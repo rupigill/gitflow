@@ -322,11 +322,33 @@ get_top_pom_path() {
 
 get_current_pom_version() {
 	local toppom="$1"
-        mvn -f $toppom org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version 2>&1 | grep -E '^\d+(\.\d+)*(-.+)?$'
+        mvn -f $toppom org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version 2>&1 | grep -E '^\d+(\.\d+){0,2}(-SNAPSHOT)?$' | sed -E 's/(-SNAPSHOT)$/-${revision}/'
 }
 
 get_active_branch() {
 	git branch | grep '^* ' | cut -d' ' -f2
+}
+
+get_minor_version() {
+	local v="$1"
+	echo $v | cut -d'-' -f1 | cut -d'.' -f2
+}
+
+set_minor_version() {
+	local v="$1"
+	local minorv="$2"
+	echo $v | sed -E 's/([[:digit:]])+\.[[:digit:]]+\.([[:digit:]]+)(-.+)?$/\1.'$minorv'.\2\3/'
+}
+
+get_incr_version() {
+	local v="$1"
+	echo $v | cut -d'-' -f1 | cut -d'.' -f3
+}
+
+set_incr_version() {
+	local v="$1"
+	local incrv="$2"
+	echo $v | sed -E 's/\.[[:digit:]]+(-.+)?$/.'$incrv'\1/'
 }
 
 set_pom_version() {

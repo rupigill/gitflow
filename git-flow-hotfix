@@ -185,9 +185,9 @@ cmd_start() {
 	if [ "$toppom" != "" ]; then
 		local curver=$(get_current_pom_version $toppom)
 		echo "curver = $curver"
-		curpatch=$(echo $curver | cut -d'.' -f3)
+		curpatch=$(get_incr_version $curver)
 		newpatch=$(expr $curpatch + 1)
-		newver="$(echo $curver | cut -d'.' -f1-2).$newpatch"
+		newver=$(set_incr_version $curver $newpatch)
 
 		# Check if hotfix branch name jives with the expected pom version of hotfix
 		if [ "v${newver}" != "${VERSION}" ]; then
