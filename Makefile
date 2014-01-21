@@ -57,6 +57,8 @@ install:
 	install -m 0755 $(EXEC_FILES) $(prefix)/bin
 	install -m 0644 $(SCRIPT_FILES) $(prefix)/bin
 
+installtar: 
+	sudo tar -C $(prefix)/bin -xzf gitflow-$(VER).tgz
 	
 uninstall:
 	test -d $(prefix)/bin && \
