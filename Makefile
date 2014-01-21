@@ -31,6 +31,8 @@ prefix=/usr/local/Cellar/git-flow/0.4.1/libexec
 # files that need mode 755
 EXEC_FILES=git-flow
 
+VER:=$(shell grep 'VERSION=' git-flow-version | cut -d'=' -f2)
+
 # files that need mode 644
 SCRIPT_FILES =git-flow-init
 SCRIPT_FILES+=git-flow-feature
@@ -47,7 +49,7 @@ all:
 	@echo "       make uninstall"
 
 distrib: 
-	tar -cvzLf gitflow-xxx.tgz $(EXEC_FILES) $(SCRIPT_FILES)
+	tar -cvzLf gitflow-$(VER).tgz $(EXEC_FILES) $(SCRIPT_FILES)
 
 install:
 	@test -f gitflow-shFlags || (echo "Run 'git submodule init && git submodule update' first." ; exit 1 )
