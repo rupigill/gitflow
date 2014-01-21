@@ -355,8 +355,16 @@ set_pom_version() {
 	local toppom="$1"
 	local newver="$2"
 	local curbranch=$(get_active_branch)
+	local newver_mod="$newver"
 	echo "Updating pom versions on $curbranch to $newver..."
-	if mvn -f $toppom versions:set -DnewVersion=$newver >/dev/null 2>&1; then
+	if [ "$(echo $newver | grep -E '\${revision}$')" != "" ]; then
+		newver_mod=$(echo $newver | sed -E 's/-\$\{revision\}$/-VERSION_QUALIFIER_PLACEHOLDER/')
+	fi
+	echo "newver_mod = $newver_mod"
+	if mvn -f $toppom versions:set -DnewVersion=$newver_mod -DprocessDependencies=false -DprocessParent=false -DprocessPlugins=false -DupdateMatchingVersions=true >/dev/null 2>&1; then
+		if [ "$newver_mod" != "$newver" ]; then
+			sed -E 's/-VERSION_QUALIFIER_PLACEHOLDER/-${revision}/g' $toppom > ${toppom}.gitflow && mv ${toppom}.gitflow $toppom
+		fi
 		git add $(find $(dirname $toppom) -name pom.xml | grep -v '/target/') 
 		[ "$COMMIT_POM_SET_VERSION" != "0" ] && git commit -m "Updated pom versions on $curbranch to $newver"
 		echo "- POM versions on $curbranch have been updated to $newver"
