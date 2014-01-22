@@ -192,7 +192,7 @@ parse_remote_name() {
 }
 
 cmd_start() {
-	DEFINE_boolean fetch false 'fetch from origin before performing local operation' F
+	DEFINE_boolean fetch true 'fetch from origin before performing local operation' F
 	DEFINE_integer devextn 0 'Telephone extension of developer to use as "incrementalVersion" component in the feature pom version' N
 	parse_args "$@"
 	eval set -- "${FLAGS_ARGV}"
@@ -242,7 +242,7 @@ cmd_start() {
 		fi
 	fi
 
-	git push "$ORIGIN" "$BRANCH"
+	git push -u "$ORIGIN" "$BRANCH"
 
 	echo ""
 	echo "Now, start committing on your feature. When done, use:"
