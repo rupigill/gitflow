@@ -36,7 +36,7 @@
 # policies, either expressed or implied, of Vincent Driessen.
 #
 
-GITFLOW_VERSION=0.4.1-skopos-01-20-2014
+GITFLOW_VERSION=0.4.1-skopos-01-22-2014
 
 usage() {
 	echo "usage: git flow version"
