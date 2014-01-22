@@ -361,7 +361,7 @@ set_pom_version() {
 		newver_mod=$(echo $newver | sed -E 's/-\$\{revision\}$/-VERSION_QUALIFIER_PLACEHOLDER/')
 	fi
 	echo "newver_mod = $newver_mod"
-	if mvn -f $toppom versions:set -DnewVersion=$newver_mod -DprocessDependencies=false -DprocessParent=false -DprocessPlugins=false -DupdateMatchingVersions=true >/dev/null 2>&1; then
+	if mvn -f $toppom versions:set -DnewVersion=$newver_mod -DprocessDependencies=false -DprocessPlugins=false -DprocessParent=true -DupdateMatchingVersions=true >/dev/null 2>&1; then
 		if [ "$newver_mod" != "$newver" ]; then
 			sed -E 's/-VERSION_QUALIFIER_PLACEHOLDER/-${revision}/g' $toppom > ${toppom}.gitflow && mv ${toppom}.gitflow $toppom
 		fi
