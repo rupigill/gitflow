@@ -295,7 +295,7 @@ cmd_default() {
 
 
 	if flag force || \
-	  ! git config --get gitflow.gitflowuser.phone_extn >/dev/null 2>&1; then
+	  ! git config --get gitflow.gitflowuser.phoneextn >/dev/null 2>&1; then
 		echo
 		echo "Your company specific configuration:"
 		printf "Last four digits of your work phone number or extension number (to uniquely identify your feature pom-version from your collegues)? (you may override this via -N flag upon start of a feature) "
@@ -315,7 +315,7 @@ cmd_default() {
 		else
 			printf "\n"
 		fi
-		[ "$answer" != "" ] && git config gitflow.gitflowuser.phone_extn "$answer"
+		[ "$answer" != "" ] && git config gitflow.gitflowuser.phoneextn "$answer"
 
 	fi
 
