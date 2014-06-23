@@ -295,10 +295,10 @@ cmd_default() {
 
 
 	if flag force || \
-	  ! git config --get gitflow.skopos.devextn >/dev/null 2>&1; then
+	  ! git config --get gitflow.gitflowuser.phone_extn >/dev/null 2>&1; then
 		echo
-		echo "Skopos specific configuration:"
-		printf "Last four digits of your Skopos phone number? (enter nothing if you want to supply this via -N flag upon start of a feature) "
+		echo "Your company specific configuration:"
+		printf "Last four digits of your work phone number or extension number (to uniquely identify your feature pom-version from your collegues)? (you may override this via -N flag upon start of a feature) "
 		if noflag defaults; then
 			while read answer; do
 				if [ "$answer" != "" ]; then
@@ -315,7 +315,7 @@ cmd_default() {
 		else
 			printf "\n"
 		fi
-		[ "$answer" != "" ] && git config gitflow.skopos.devextn "$answer"
+		[ "$answer" != "" ] && git config gitflow.gitflowuser.phone_extn "$answer"
 
 	fi
 

@@ -226,7 +226,7 @@ cmd_start() {
 
 	local devextn
 	if [ "$FLAGS_devextn" -eq 0 ]; then
-		devextn=$(git config --get gitflow.skopos.devextn)
+		devextn=$(git config --get gitflow.gitflowuser.phone_extn)
 		[ "$devextn" = "" ] && devextn=0
 	else
 		devextn=$FLAGS_devextn

@@ -365,7 +365,7 @@ set_pom_version() {
 			sed -E 's/-VERSION_QUALIFIER_PLACEHOLDER/-${revision}/g' $toppom > ${toppom}.gitflow && mv ${toppom}.gitflow $toppom
 		fi
 		git add $(find $(dirname $toppom) -name pom.xml | grep -v '/target/') 
-		[ "$COMMIT_POM_SET_VERSION" != "0" ] && git commit -m "Updated pom versions on $curbranch to $newver"
+		[ "$COMMIT_POM_SET_VERSION" != "0" ] && git commit -m "gitflow: Updated pom versions on $curbranch to $newver"
 		echo "- POM versions on $curbranch have been updated to $newver"
 	else
 		echo "WARN: Unable to update pom versions on $curbranch to $newver";

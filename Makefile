@@ -49,7 +49,7 @@ all:
 	@echo "       make uninstall"
 
 distrib: 
-	tar -cvzLf gitflow-$(VER).tgz $(EXEC_FILES) $(SCRIPT_FILES)
+	tar -cvLf gitflow-$(VER).tar $(EXEC_FILES) $(SCRIPT_FILES)
 
 install:
 	@test -f gitflow-shFlags || (echo "Run 'git submodule init && git submodule update' first." ; exit 1 )
@@ -58,7 +58,7 @@ install:
 	install -m 0644 $(SCRIPT_FILES) $(prefix)/bin
 
 installtar: 
-	sudo tar -C $(prefix)/bin -xzf gitflow-$(VER).tgz
+	sudo tar -C $(prefix)/bin -xf gitflow-$(VER).tar
 	
 uninstall:
 	test -d $(prefix)/bin && \
