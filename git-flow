@@ -2,7 +2,11 @@
 #
 # git-flow -- A collection of Git extensions to provide high-level
 # repository operations for Vincent Driessen's branching model.
-#
+#------ not part of original from V. Driessen; added by R. Gill in 2014
+#-- RG added support to alter pom-versions automatically on develop,
+#-- feature, and hotfix branches upon starting/finishing of the
+#-- feature, release, and hotfix subcommands.
+#------ rupigill@gmail.com
 # Original blog post presenting this model is found at:
 #    http://nvie.com/git-model
 #
