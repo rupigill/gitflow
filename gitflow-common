@@ -358,11 +358,13 @@ set_pom_version() {
 	local newver_mod="$newver"
 	echo "Updating pom versions on $curbranch to $newver..."
 	if [ "$(echo $newver | grep -E '\${revision}$')" != "" ]; then
-		newver_mod=$(echo $newver | sed -E 's/-\$\{revision\}$/-VERSION_QUALIFIER_PLACEHOLDER/')
+		newver_mod=$(echo $newver | sed -E 's/-\$\{revision\}$/-VERSION_REVISION_PLACEHOLDER/')
 	fi
-	if mvn -f $toppom versions:set -DnewVersion=$newver_mod -DprocessDependencies=false -DprocessPlugins=false -DprocessParent=true -DupdateMatchingVersions=true >/dev/null 2>&1; then
+	if mvn -f $toppom versions:set -DgenerateBackupPoms=false -DnewVersion=$newver_mod -DprocessDependencies=false -DprocessPlugins=false -DprocessParent=true -DupdateMatchingVersions=true >/dev/null 2>&1; then
 		if [ "$newver_mod" != "$newver" ]; then
-			sed -E 's/-VERSION_QUALIFIER_PLACEHOLDER/-${revision}/g' $toppom > ${toppom}.gitflow && mv ${toppom}.gitflow $toppom
+			for f in $(grep -l VERSION_REVISION_PLACEHOLDER $(find $(dirname $toppom) -name pom.xml)); do
+				sed -E 's/-VERSION_REVISION_PLACEHOLDER/-${revision}/g' $f > ${f}.gitflow && mv ${f}.gitflow $f
+			done
 		fi
 		git add $(find $(dirname $toppom) -name pom.xml | grep -v '/target/') 
 		[ "$COMMIT_POM_SET_VERSION" != "0" ] && git commit -m "gitflow: Updated pom versions on $curbranch to $newver"

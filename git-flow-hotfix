@@ -189,12 +189,6 @@ cmd_start() {
 		newpatch=$(expr $curpatch + 1)
 		newver=$(set_incr_version $curver $newpatch)
 
-		# Check if hotfix branch name jives with the expected pom version of hotfix
-		if [ "v${newver}" != "${VERSION}" ]; then
-			echo "WARN: Expected name of this hotfix branch to be v${newver}!"
-			# TODO: if $VERSION is of pattern v#.#.#, then we should get the newver value from $VERSION
-		fi
-
 		set_pom_version $toppom $newver
 	fi
 
