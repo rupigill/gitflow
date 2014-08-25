@@ -193,7 +193,6 @@ parse_remote_name() {
 
 cmd_start() {
 	DEFINE_boolean fetch true 'fetch from origin before performing local operation' F
-	DEFINE_integer devextn 0 'Telephone extension of developer to use as "incrementalVersion" component in the feature pom version' N
 	parse_args "$@"
 	eval set -- "${FLAGS_ARGV}"
 	BASE=${2:-$DEVELOP_BRANCH}
@@ -224,21 +223,16 @@ cmd_start() {
 	echo "- You are now on branch '$BRANCH'"
 	echo
 
-	local devextn
-	if [ "$FLAGS_devextn" -eq 0 ]; then
-		devextn=$(git config --get gitflow.gitflowuser.phoneextn)
-		[ "$devextn" = "" ] && devextn=0
-	else
-		devextn=$FLAGS_devextn
-	fi
-
-	if [ $devextn -ne 0 ]; then
-		local toppom=$(get_top_pom_path)
-		if [ "$toppom" != "" ]; then
+	local toppom=$(get_top_pom_path)
+	if [ "$toppom" != "" ]; then
+		local featid=$(make_feature_id_from_name $NAME)
+		if [ "$featid" != "" ]; then
 			local curver=$(get_current_pom_version $toppom)
 			echo "curver = $curver"
-			local newver=$(set_incr_version $curver $devextn)
+			local newver=$(set_incr_version $curver $featid)
 			set_pom_version $toppom $newver
+		else
+			echo "No feature-id in name, so pom versions will not be updated.  Please do so manually."
 		fi
 	fi
 
@@ -387,10 +381,11 @@ helper_finish_cleanup() {
 	require_branch "$BRANCH"
 	require_clean_working_tree
 
-	# delete remote branch
-	git push "$ORIGIN" ":refs/heads/$BRANCH"
-	
+	# delete branch
 	if noflag keep; then
+		# delete remote branch
+		git push "$ORIGIN" :"$BRANCH"
+
 		git branch -d "$BRANCH"
 	fi
 
@@ -399,9 +394,9 @@ helper_finish_cleanup() {
 	echo "- The feature branch '$BRANCH' was merged into '$DEVELOP_BRANCH'"
 	#echo "- Merge conflicts were resolved"		# TODO: Add this line when it's supported
 	if flag keep; then
-		echo "- Feature branch '$BRANCH' is still available locally"
+		echo "- Feature branch '$BRANCH' was NOT deleted"
 	else
-		echo "- Feature branch '$BRANCH' has been removed (both local and remote)"
+		echo "- Feature branch '$BRANCH' was deleted (both local and remote)"
 	fi
 	echo "- You are now on branch '$DEVELOP_BRANCH'"
 	echo
@@ -548,5 +543,24 @@ cmd_pull() {
 		git branch --no-track "$BRANCH" FETCH_HEAD || die "Branch failed."
 		git checkout -q "$BRANCH" || die "Checking out new local branch failed."
 		echo "Created local branch $BRANCH based on $REMOTE's $BRANCH."
+	fi
+}
+
+make_feature_id_from_name() {
+	local name="$1"
+	local id=$(echo $name | cut -d'-' -f2)
+	if [ "$id" != "" ]; then
+		if [ "$(echo $id | tr -d '[:digit:]')" != "" ]; then
+			echo "INVALID feature-id (not a number): $id" >&2
+		else
+			padded=$(echo 000${id})
+			len=$(echo ${#padded})
+			if [ $len -gt 7 ]; then
+				i=4
+			else
+				i=$(expr $len - 3)
+			fi
+			echo "1$(echo $padded | cut -c${i}-)"
+		fi
 	fi
 }

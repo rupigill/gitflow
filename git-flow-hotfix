@@ -209,7 +209,7 @@ cmd_finish() {
 	DEFINE_string signingkey "" "use the given GPG-key for the digital signature (implies -s)" u
 	DEFINE_string message "" "use the given tag message" m
 	DEFINE_boolean push true "push to $ORIGIN after performing finish" p
-	DEFINE_boolean keep false "keep branch after performing finish" k
+	DEFINE_boolean keep true "keep branch after performing finish" k
 	DEFINE_boolean notag false "don't tag this release" n
 	parse_args "$@"
 	require_version_arg
@@ -306,11 +306,12 @@ cmd_finish() {
 		fi
 	fi
 
-	# delete remote branch
-	git push "$ORIGIN" ":refs/heads/$BRANCH"
 
-	# delete branch
 	if noflag keep; then
+		# delete remote branch
+		git push "$ORIGIN" ":refs/heads/$BRANCH"
+
+		# delete branch
 		git branch -d "$BRANCH"
 	fi
 
@@ -334,9 +335,9 @@ cmd_finish() {
 	fi
 	echo "- Hotfix branch has been back-merged into '$DEVELOP_BRANCH'"
 	if flag keep; then
-		echo "- Hotfix branch '$BRANCH' is still available (locally)"
+		echo "- Hotfix branch '$BRANCH' was NOT deleted"
 	else
-		echo "- Hotfix branch '$BRANCH' has been deleted (both local and remote)"
+		echo "- Hotfix branch '$BRANCH' was deleted (both local and remote)"
 	fi
 	if flag push; then
 		echo "- '$DEVELOP_BRANCH', '$MASTER_BRANCH' and tags have been pushed to '$ORIGIN'"
