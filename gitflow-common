@@ -322,7 +322,7 @@ get_top_pom_path() {
 
 get_current_pom_version() {
 	local toppom="$1"
-        mvn -f $toppom org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version 2>&1 | grep -E '^\d+(\.\d+){0,2}(-SNAPSHOT)?$' | sed -E 's/(-SNAPSHOT)$/-${revision}/'
+        mvn -o -f $toppom org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version 2>&1 | grep -E '^\d+(\.\d+){0,2}(-SNAPSHOT)?$' | sed -E 's/(-SNAPSHOT)$/-${revision}/'
 }
 
 get_active_branch() {
@@ -360,7 +360,7 @@ set_pom_version() {
 	if [ "$(echo $newver | grep -E '\${revision}$')" != "" ]; then
 		newver_mod=$(echo $newver | sed -E 's/-\$\{revision\}$/-VERSION_REVISION_PLACEHOLDER/')
 	fi
-	if mvn -f $toppom versions:set -DgenerateBackupPoms=false -DnewVersion=$newver_mod -DprocessDependencies=false -DprocessPlugins=false -DprocessParent=true -DupdateMatchingVersions=true >/dev/null 2>&1; then
+	if mvn -o -f $toppom versions:set -DgenerateBackupPoms=false -DnewVersion=$newver_mod -DprocessDependencies=false -DprocessPlugins=false -DprocessParent=true -DupdateMatchingVersions=true >/dev/null 2>&1; then
 		if [ "$newver_mod" != "$newver" ]; then
 			for f in $(grep -l VERSION_REVISION_PLACEHOLDER $(find $(dirname $toppom) -name pom.xml)); do
 				sed -E 's/-VERSION_REVISION_PLACEHOLDER/-${revision}/g' $f > ${f}.gitflow && mv ${f}.gitflow $f
