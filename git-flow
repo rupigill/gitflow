@@ -118,9 +118,9 @@ main() {
 	fi
 
 	# run the specified action
-  if [ $SUBACTION != "help" ] && [ $SUBCOMMAND != "init" ] ; then
-    init
-  fi
+#  if [ $SUBACTION != "help" ] && [ $SUBCOMMAND != "init" ] ; then
+#    init
+#  fi
 	cmd_$SUBACTION "$@"
 }
 

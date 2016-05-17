@@ -185,10 +185,10 @@ cmd_start() {
 	if [ "$toppom" != "" ]; then
 		local curver=$(get_current_pom_version $toppom)
 		echo "curver = $curver"
-		curpatch=$(get_incr_version $curver)
+		curpatch=$(get_least_version $curver)
 		newpatch=$(expr $curpatch + 1)
-		newver=$(set_incr_version $curver $newpatch)
-
+		newver=$(set_least_version $curver $newpatch)
+		newver=$(set_version_qualifier $newver "fix-SNAPSHOT")
 		set_pom_version $toppom $newver
 	fi
 
@@ -232,10 +232,21 @@ cmd_finish() {
 	require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
 	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
+
 	# try to merge into master
 	# in case a previous attempt to finish this release branch has failed,
 	# but the merge into master was successful, we skip it now
 	if ! git_is_branch_merged_into "$BRANCH" "$MASTER_BRANCH"; then
+		echo "Removing qualifier from version before merging into master"
+		git checkout "$BRANCH"
+
+		local toppom=$(get_top_pom_path)
+		local hotpomver
+		if [ "$toppom" != "" ]; then
+			hotpomver=$(get_current_pom_version $toppom)
+		fi
+		set_pom_version $toppom $(set_version_qualifier $hotpomver "") "GITFLOW HOTFIX FINISH"
+
 		git checkout "$MASTER_BRANCH" || \
 		  die "Could not check out $MASTER_BRANCH."
 		if ! git merge --no-ff "$BRANCH"; then
@@ -243,6 +254,9 @@ cmd_finish() {
 			echo "Manually reconcile the conflicts on $MASTER_BRANCH and commit."
 			die "Please run finish again once above is done."
 		fi
+	else
+		git checkout "$MASTER_BRANCH" || \
+		  die "Could not check out $MASTER_BRANCH."
 	fi
 
 	if noflag notag; then
@@ -264,15 +278,6 @@ cmd_finish() {
 		fi
 	fi
 
-	# What is the pom version on the hotfix branch?
-	git checkout "$BRANCH"
-
-	local toppom=$(get_top_pom_path)
-	local hotpomver
-	if [ "$toppom" != "" ]; then
-		hotpomver=$(get_current_pom_version $toppom)
-	fi
-
 	# try to merge into develop
 	# in case a previous attempt to finish this release branch has failed,
 	# but the merge into develop was successful, we skip it now
@@ -280,12 +285,14 @@ cmd_finish() {
 		git checkout "$DEVELOP_BRANCH" || \
 		  die "Could not check out $DEVELOP_BRANCH."
 
+		local devtoppom=$(get_top_pom_path)
 		local devpomver
-		if [ "$toppom" != "" ]; then
-			devpomver=$(get_current_pom_version $toppom)
-			# Temporarily set dev pom-version to one from hotfix branch so that there are no
-			# merge conflicts on pom.
-			set_pom_version $toppom $hotpomver
+		if [ "$devtoppom" != "" ]; then
+			devpomver=$(get_current_pom_version $devtoppom)
+			#TODO Detect if a Release was started/made on develop after hotfix started
+			git checkout "$BRANCH"
+			set_pom_version $toppom $devpomver "GITFLOW HOTFIX FINISH"
+			git checkout "$DEVELOP_BRANCH"
 		fi
 
 		# TODO: Actually, accounting for 'git describe' pays, so we should
@@ -293,16 +300,7 @@ cmd_finish() {
 		if ! git merge --no-ff "$BRANCH"; then
 			echo "ERROR: There were merge conflicts on $DEVELOP_BRANCH!"
 			echo "Manually reconcile the conflicts on $DEVELOP_BRANCH and commit."
-			if [ "$hotpomver" != "$devpomver" ]; then
-				COMMIT_SET_POM_VERSION=0
-				set_pom_version $toppom $devpomver
-				unset COMMIT_SET_POM_VERSION
-			fi
 			die "Please run finish again once above is done."
-		fi
-
-		if [ "$toppom" != "" -a "$hotpomver" != "$devpomver" ]; then
-			set_pom_version $toppom $devpomver
 		fi
 	fi
 

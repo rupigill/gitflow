@@ -173,30 +173,34 @@ cmd_start() {
 	echo "Summary of actions:"
 	echo "- A new branch '$BRANCH' was created, based on '$BASE'"
 	
-	# increment develop versions to next-release version
 	local toppom=$(get_top_pom_path)
 	if [ "$toppom" != "" ]; then
+		# Change version qualifier on release branch
+		local curver=$(get_current_pom_version $toppom)
+		echo "curver = $curver"
+		local newver=$(set_version_qualifier $curver "rel-SNAPSHOT")
+		set_pom_version $toppom $newver
+
+		# increment develop versions to next-release version
 		git checkout "$BASE"
 
-		local curver=$(get_current_pom_version $toppom)
-		echo "Current version: " $curver
-		local curminor=$(get_minor_version $curver)
-		local newver=$(set_minor_version $curver $(expr $curminor + 1))
+		curver=$(get_current_pom_version $toppom)
+		echo "curver = $curver"
+		local curminor=$(get_2ndleast_version $curver)
+		newver=$(set_2ndleast_version $curver $(expr $curminor + 1))
 		set_pom_version $toppom $newver
 
 		git push "$ORIGIN" "$BASE"
+		echo "- Branch '$BASE' has been pushed to '$ORIGIN'"
 
 		git checkout "$BRANCH"
 	fi
 
+
 	git push -u "$ORIGIN" "$BRANCH"
 
 	echo "- Branch '$BRANCH' has been pushed to '$ORIGIN'"
-	if [ "$toppom" != "" ]; then
-		echo "- Branch '$BASE' has been pushed to '$ORIGIN'"
-	fi
 	echo "- You are now on branch '$BRANCH'"
-
 
 	echo
 	echo "Follow-up actions:"
@@ -241,6 +245,15 @@ cmd_finish() {
 	# in case a previous attempt to finish this release branch has failed,
 	# but the merge into master was successful, we skip it now
 	if ! git_is_branch_merged_into "$BRANCH" "$MASTER_BRANCH"; then
+		echo "Removing qualifier from version before merging into master"
+		git checkout "$BRANCH"
+
+		local toppom=$(get_top_pom_path)
+		local relpomver
+		if [ "$toppom" != "" ]; then
+			relpomver=$(get_current_pom_version $toppom)
+		fi
+		set_pom_version $toppom $(set_version_qualifier $relpomver "") "GITFLOW RELEASE FINISH"
 		git checkout "$MASTER_BRANCH" || \
 		  die "Could not check out $MASTER_BRANCH."
 		if ! git merge --no-ff "$BRANCH"; then
@@ -248,6 +261,9 @@ cmd_finish() {
 			echo "Manually reconcile the conflicts on $MASTER_BRANCH and commit."
 			die "Please run finish again once above is done."
 		fi
+	else
+		git checkout "$MASTER_BRANCH" || \
+		  die "Could not check out $MASTER_BRANCH."
 	fi
 
 	if noflag notag; then
@@ -275,6 +291,15 @@ cmd_finish() {
 	if ! git_is_branch_merged_into "$BRANCH" "$DEVELOP_BRANCH"; then
 		git checkout "$DEVELOP_BRANCH" || \
 		  die "Could not check out $DEVELOP_BRANCH."
+
+		local devtoppom=$(get_top_pom_path)
+		local devpomver
+		if [ "$devtoppom" != "" ]; then
+			devpomver=$(get_current_pom_version $devtoppom)
+			git checkout "$BRANCH"
+			set_pom_version $toppom $devpomver "GITFLOW RELEASE FINISH"
+			git checkout "$DEVELOP_BRANCH"
+		fi
 
 		# TODO: Actually, accounting for 'git describe' pays, so we should
 		# ideally git merge --no-ff $tagname here, instead!

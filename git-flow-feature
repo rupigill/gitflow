@@ -225,15 +225,10 @@ cmd_start() {
 
 	local toppom=$(get_top_pom_path)
 	if [ "$toppom" != "" ]; then
-		local featid=$(make_feature_id_from_name $NAME)
-		if [ "$featid" != "" ]; then
-			local curver=$(get_current_pom_version $toppom)
-			echo "curver = $curver"
-			local newver=$(set_incr_version $curver $featid)
-			set_pom_version $toppom $newver
-		else
-			echo "No feature-id in name, so pom versions will not be updated.  Please do so manually."
-		fi
+		local curver=$(get_current_pom_version $toppom)
+		echo "curver = $curver"
+		local newver=$(set_version_qualifier $curver "fea-$NAME-SNAPSHOT")
+		set_pom_version $toppom $newver
 	fi
 
 	git push -u "$ORIGIN" "$BRANCH"
@@ -333,17 +328,29 @@ cmd_finish() {
 	# merge into BASE
 	git checkout "$DEVELOP_BRANCH"
 
+	local devtoppom=$(get_top_pom_path)
 	local devpomver
 	if [ "$toppom" != "" ]; then
 		devpomver=$(get_current_pom_version $toppom)
-		devbasever=$(echo $devpomver | sed -E 's/\.[[:digit:]]+(-.+)?$//')
-		featbasever=$(echo $featpomver | sed -E 's/\.[[:digit:]]+(-.+)?$//')
+		devbasever=$(remove_version_qualifier $devpomver)
+		featbasever=$(remove_version_qualifier $featpomver)
 		if [ "$featbasever" != "$devbasever" ]; then
-			# A release branch must have been started after the feature was started; 
-			# Set develop branch pom version to same as feature pom version temporarily to avoid merge conflicts; reset the 
-			# version back after merge
-			set_pom_version $toppom $featpomver
+			# Feature version number not same as dev-version (next planned release #)
+			# Either a release was started after this feature was started, or
+			# the feature is intended for future release.
+			echo "Feature version $featbasever NOT SAME as develop version $devbasever!"
+			echo "If feature version is older, it means a release was made/started since"
+			echo "start of the feature.  MERGE develop into the feature then try again."
+			echo "If feature version is newer, it means that develop is not yet ready;"
+			echo "Either cut a release or set the version on develop to be same as the"
+			echo "feature to indicate that feature version is the next planned release."
+			exit 1
+		else
+			git checkout "$BRANCH"
+			set_pom_version $toppom $devpomver
+			git checkout "$DEVELOP_BRANCH"
 		fi
+
 	fi
 
 	if [ "$(git rev-list -n2 "$DEVELOP_BRANCH..$BRANCH" | wc -l)" -eq 1 ]; then
@@ -366,10 +373,6 @@ cmd_finish() {
 		echo "    git flow feature finish $NAME"
 		echo
 		exit 1
-	fi
-
-	if [ "$featpomver" != "$devpomver" ]; then
-		set_pom_version $toppom $devpomver
 	fi
 
 	# when no merge conflict is detected, just clean up the feature branch
@@ -543,24 +546,5 @@ cmd_pull() {
 		git branch --no-track "$BRANCH" FETCH_HEAD || die "Branch failed."
 		git checkout -q "$BRANCH" || die "Checking out new local branch failed."
 		echo "Created local branch $BRANCH based on $REMOTE's $BRANCH."
-	fi
-}
-
-make_feature_id_from_name() {
-	local name="$1"
-	local id=$(echo $name | cut -d'-' -f2)
-	if [ "$id" != "" ]; then
-		if [ "$(echo $id | tr -d '[:digit:]')" != "" ]; then
-			echo "INVALID feature-id (not a number): $id" >&2
-		else
-			padded=$(echo 000${id})
-			len=$(echo ${#padded})
-			if [ $len -gt 7 ]; then
-				i=4
-			else
-				i=$(expr $len - 3)
-			fi
-			echo "1$(echo $padded | cut -c${i}-)"
-		fi
 	fi
 }
