@@ -175,25 +175,26 @@ cmd_start() {
 	
 	local toppom=$(get_top_pom_path)
 	if [ "$toppom" != "" ]; then
-		# Change version qualifier on release branch
+		# Change version on release branch
 		local curver=$(get_current_pom_version $toppom)
 		echo "curver = $curver"
-		local newver=$(set_version_qualifier $curver "rel-SNAPSHOT")
+		#local newver=$(set_version_qualifier $curver "rel-SNAPSHOT")
+		local newver=$(echo ${VERSION}-SNAPSHOT")
 		set_pom_version $toppom $newver
 
-		# increment develop versions to next-release version
-		git checkout "$BASE"
+		# # increment develop versions to next-release version
+		# git checkout "$BASE"
 
-		curver=$(get_current_pom_version $toppom)
-		echo "curver = $curver"
-		local curminor=$(get_2ndleast_version $curver)
-		newver=$(set_2ndleast_version $curver $(expr $curminor + 1))
-		set_pom_version $toppom $newver
+		# curver=$(get_current_pom_version $toppom)
+		# echo "curver = $curver"
+		# local curminor=$(get_2ndleast_version $curver)
+		# newver=$(set_2ndleast_version $curver $(expr $curminor + 1))
+		# set_pom_version $toppom $newver
 
-		git push "$ORIGIN" "$BASE"
-		echo "- Branch '$BASE' has been pushed to '$ORIGIN'"
+		# # git push "$ORIGIN" "$BASE"
+		# echo "- Branch '$BASE' has been pushed to '$ORIGIN'"
 
-		git checkout "$BRANCH"
+		# git checkout "$BRANCH"
 	fi
 
 
@@ -245,15 +246,15 @@ cmd_finish() {
 	# in case a previous attempt to finish this release branch has failed,
 	# but the merge into master was successful, we skip it now
 	if ! git_is_branch_merged_into "$BRANCH" "$MASTER_BRANCH"; then
-		echo "Removing qualifier from version before merging into master"
+		echo "Removing SNAPSHOT qualifier from version before merging into master"
 		git checkout "$BRANCH"
 
 		local toppom=$(get_top_pom_path)
 		local relpomver
 		if [ "$toppom" != "" ]; then
 			relpomver=$(get_current_pom_version $toppom)
+			set_pom_version $toppom $(echo $relpomver | sed -E 's/-SNAPSHOT$//') "GITFLOW RELEASE FINISH"
 		fi
-		set_pom_version $toppom $(set_version_qualifier $relpomver "") "GITFLOW RELEASE FINISH"
 		git checkout "$MASTER_BRANCH" || \
 		  die "Could not check out $MASTER_BRANCH."
 		if ! git merge --no-ff "$BRANCH"; then
