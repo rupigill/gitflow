@@ -152,7 +152,7 @@ require_no_existing_release_branches() {
 }
 
 cmd_start() {
-	DEFINE_boolean fetch false "fetch from $ORIGIN before performing finish" F
+	DEFINE_boolean fetch true "fetch from $ORIGIN before performing finish" F
 	parse_args "$@"
 	BASE=${2:-$DEVELOP_BRANCH}
 	require_version_arg
@@ -166,9 +166,7 @@ cmd_start() {
 	if flag fetch; then
 		git_do fetch -q "$ORIGIN" "$DEVELOP_BRANCH"
 	fi
-	if has "$ORIGIN/$DEVELOP_BRANCH" $(git_remote_branches); then
-		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
-	fi
+	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
 	# create branch
 	git_do checkout -b "$BRANCH" "$BASE"
@@ -176,10 +174,40 @@ cmd_start() {
 	echo
 	echo "Summary of actions:"
 	echo "- A new branch '$BRANCH' was created, based on '$BASE'"
+	
+	local toppom=$(get_top_pom_path)
+	if [ "$toppom" != "" ]; then
+		# Change version on release branch
+		local newver=$(echo ${VERSION}-SNAPSHOT)
+		set_pom_version $toppom $newver
+
+		local qual=$(echo $VERSION | tr '_' '-' | cut -d '-' -f2-)
+		if [ "$qual" = "" ]; then
+			# increment develop versions to next-release version
+			git_do checkout "$BASE"
+
+			curver=$(get_current_pom_version $toppom)
+			echo "curver = $curver"
+			local curminor=$(get_2ndleast_version $curver)
+			newver=$(set_2ndleast_version $curver $(expr $curminor + 1))
+			set_pom_version $toppom $newver
+
+			git_do push "$ORIGIN" "$BASE"
+			echo "- Branch '$BASE' has been pushed to '$ORIGIN'"
+
+			git_do checkout "$BRANCH"
+		fi
+	fi
+
+
+	git_do push -u "$ORIGIN" "$BRANCH"
+
+	echo "- Branch '$BRANCH' has been pushed to '$ORIGIN'"
 	echo "- You are now on branch '$BRANCH'"
+
 	echo
 	echo "Follow-up actions:"
-	echo "- Bump the version number now!"
+	echo "- Update release-notes, changelog, etc."
 	echo "- Start committing last-minute fixes in preparing your release"
 	echo "- When done, run:"
 	echo
@@ -188,12 +216,12 @@ cmd_start() {
 }
 
 cmd_finish() {
-	DEFINE_boolean fetch false "fetch from $ORIGIN before performing finish" F
+	DEFINE_boolean fetch true "fetch from $ORIGIN before performing finish" F
 	DEFINE_boolean sign false "sign the release tag cryptographically" s
 	DEFINE_string signingkey "" "use the given GPG-key for the digital signature (implies -s)" u
 	DEFINE_string message "" "use the given tag message" m
 	DEFINE_string messagefile "" "use the contents of the given file as a tag message" f
-	DEFINE_boolean push false "push to $ORIGIN after performing finish" p
+	DEFINE_boolean push true "push to $ORIGIN after performing finish" p
 	DEFINE_boolean keep false "keep branch after performing finish" k
 	DEFINE_boolean notag false "don't tag this release" n
 	DEFINE_boolean squash false "squash release during merge" S
@@ -215,42 +243,61 @@ cmd_finish() {
 		git_do fetch -q "$ORIGIN" "$DEVELOP_BRANCH" || \
 		  die "Could not fetch $DEVELOP_BRANCH from $ORIGIN."
 	fi
-	if has "$ORIGIN/$MASTER_BRANCH" $(git_remote_branches); then
-		require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
-	fi
-	if has "$ORIGIN/$DEVELOP_BRANCH" $(git_remote_branches); then
-		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
-	fi
+	require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
+	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
 	# try to merge into master
 	# in case a previous attempt to finish this release branch has failed,
 	# but the merge into master was successful, we skip it now
 	if ! git_is_branch_merged_into "$BRANCH" "$MASTER_BRANCH"; then
+		echo "Removing SNAPSHOT qualifier from version before merging into master"
+		git_do checkout "$BRANCH"
+
+		local toppom=$(get_top_pom_path)
+		local relpomver
+		if [ "$toppom" != "" ]; then
+			relpomver=$(get_current_pom_version $toppom)
+			set_pom_version $toppom $(echo $relpomver | sed 's/-SNAPSHOT$//') "GITFLOW RELEASE FINISH"
+		fi
 		git_do checkout "$MASTER_BRANCH" || \
 		  die "Could not check out $MASTER_BRANCH."
 		if noflag squash; then
-			git_do merge --no-ff "$BRANCH" || \
-				die "There were merge conflicts."
-				# TODO: What do we do now?
+			if ! git_do merge --no-ff "$BRANCH"; then
+				echo "ERROR: There were merge conflicts on $MASTER_BRANCH!"
+				echo "Manually reconcile the conflicts on $MASTER_BRANCH and commit."
+				die "Please run finish again once above is done."
+			fi
 		else
-			git_do merge --squash "$BRANCH" || \
-				die "There were merge conflicts."
+			if ! git_do merge --squash "$BRANCH"; then
+				echo "ERROR: There were merge conflicts on $MASTER_BRANCH!"
+				echo "Manually reconcile the conflicts on $MASTER_BRANCH and commit."
+				die "Please run finish again once above is done."
+			fi
 			git_do commit
 		fi
+	else
+		git_do checkout "$MASTER_BRANCH" || \
+		  die "Could not check out $MASTER_BRANCH."
 	fi
 
 	if noflag notag; then
 		# try to tag the release
 		# in case a previous attempt to finish this release branch has failed,
 		# but the tag was set successful, we skip it now
-		local tagname=$VERSION_PREFIX$VERSION
+		#local tagname=$VERSION_PREFIX$VERSION
+		local tagname=$VERSION
 		if ! git_tag_exists "$tagname"; then
 			local opts="-a"
 			flag sign && opts="$opts -s"
 			[ "$FLAGS_signingkey" != "" ] && opts="$opts -u '$FLAGS_signingkey'"
-			[ "$FLAGS_message" != "" ] && opts="$opts -m '$FLAGS_message'"
-			[ "$FLAGS_messagefile" != "" ] && opts="$opts -F '$FLAGS_messagefile'"
-			eval git_do tag $opts "$tagname" "$BRANCH" || \
+			if [ "$FLAGS_message" != "" ]; then
+				opts="$opts -m '$FLAGS_message'"
+			elif [ "$FLAGS_messagefile" != "" ]; then
+				opts="$opts -F '$FLAGS_messagefile'"
+			else
+				opts="$opts -m 'Hot-fix Release'"
+			fi
+			(echo $opts $tagname | xargs git_do tag)  || \
 			die "Tagging failed. Please run finish again to retry."
 		fi
 	fi
@@ -262,22 +309,38 @@ cmd_finish() {
 		git_do checkout "$DEVELOP_BRANCH" || \
 		  die "Could not check out $DEVELOP_BRANCH."
 
+		local devtoppom=$(get_top_pom_path)
+		local devpomver
+		if [ "$devtoppom" != "" ]; then
+			devpomver=$(get_current_pom_version $devtoppom)
+			git_do checkout "$BRANCH"
+			set_pom_version $toppom $devpomver "GITFLOW RELEASE FINISH"
+			git_do checkout "$DEVELOP_BRANCH"
+		fi
+
 		# TODO: Actually, accounting for 'git describe' pays, so we should
 		# ideally git merge --no-ff $tagname here, instead!
 		if noflag squash; then
-			git_do merge --no-ff "$BRANCH" || \
-				die "There were merge conflicts."
-				# TODO: What do we do now?
+			if ! git_do merge --no-ff "$BRANCH"; then
+				echo "ERROR: There were merge conflicts on $DEVELOP_BRANCH!"
+				echo "Manually reconcile the conflicts on $DEVELOP_BRANCH and commit."
+				die "Please run finish again once above is done."
+			fi
 		else
-			git_do merge --squash "$BRANCH" || \
-				die "There were merge conflicts."
-				# TODO: What do we do now?
+			if ! git_do merge --squash "$BRANCH"; then
+				echo "ERROR: There were merge conflicts on $DEVELOP_BRANCH!"
+				echo "Manually reconcile the conflicts on $DEVELOP_BRANCH and commit."
+				die "Please run finish again once above is done."
+			fi
 			git_do commit
 		fi
 	fi
 
 	# delete branch
 	if noflag keep; then
+		# delete remote branch
+		git_do push "$ORIGIN" :"$BRANCH"
+
 		if [ "$BRANCH" = "$(git_current_branch)" ]; then
 			git_do checkout "$MASTER_BRANCH"
 		fi
@@ -285,16 +348,14 @@ cmd_finish() {
 	fi
 
 	if flag push; then
-		git_do push "$ORIGIN" "$DEVELOP_BRANCH" || \
-			die "Could not push to $DEVELOP_BRANCH from $ORIGIN."
 		git_do push "$ORIGIN" "$MASTER_BRANCH" || \
 			die "Could not push to $MASTER_BRANCH from $ORIGIN."
 		if noflag notag; then
 			git_do push --tags "$ORIGIN" || \
 			  die "Could not push tags to $ORIGIN."
 		fi
-		git_do push "$ORIGIN" :"$BRANCH" || \
-			die "Could not delete the remote $BRANCH in $ORIGIN."
+		git_do push "$ORIGIN" "$DEVELOP_BRANCH" || \
+			die "Could not push to $DEVELOP_BRANCH from $ORIGIN."
 	fi
 
 	echo
@@ -306,13 +367,12 @@ cmd_finish() {
 	fi
 	echo "- Release branch has been back-merged into '$DEVELOP_BRANCH'"
 	if flag keep; then
-		echo "- Release branch '$BRANCH' is still available"
+		echo "- Release branch '$BRANCH' was NOT deleted"
 	else
-		echo "- Release branch '$BRANCH' has been deleted"
+		echo "- Release branch '$BRANCH' was deleted (both local and remote)"
 	fi
 	if flag push; then
 		echo "- '$DEVELOP_BRANCH', '$MASTER_BRANCH' and tags have been pushed to '$ORIGIN'"
-		echo "- Release branch '$BRANCH' in '$ORIGIN' has been deleted."
 	fi
 	echo
 }

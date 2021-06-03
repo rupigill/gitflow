@@ -157,7 +157,7 @@ require_no_existing_hotfix_branches() {
 }
 
 cmd_start() {
-	DEFINE_boolean fetch false "fetch from $ORIGIN before performing finish" F
+	DEFINE_boolean fetch true "fetch from $ORIGIN before performing finish" F
 	parse_args "$@"
 	BASE=${2:-$MASTER_BRANCH}
 	require_version_arg
@@ -175,6 +175,7 @@ cmd_start() {
 		require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
 	fi
 
+
 	# create branch
 	git_do checkout -b "$BRANCH" "$BASE"
 
@@ -182,9 +183,23 @@ cmd_start() {
 	echo "Summary of actions:"
 	echo "- A new branch '$BRANCH' was created, based on '$BASE'"
 	echo "- You are now on branch '$BRANCH'"
+
+	# increment hotfix patch-version
+	local toppom=$(get_top_pom_path)
+	if [ "$toppom" != "" ]; then
+		local curver=$(get_current_pom_version $toppom)
+		echo "curver = $curver"
+		curpatch=$(get_least_version $curver)
+		newpatch=$(expr $curpatch + 1)
+		newver=$(set_least_version $curver $newpatch)
+		newver=$(set_version_qualifier $newver "fix-SNAPSHOT")
+		set_pom_version $toppom $newver
+	fi
+
+	git push -u "$ORIGIN" "$BRANCH"
+
 	echo
 	echo "Follow-up actions:"
-	echo "- Bump the version number now!"
 	echo "- Start committing your hot fixes"
 	echo "- When done, run:"
 	echo
@@ -240,12 +255,12 @@ cmd_track() {
 }
 
 cmd_finish() {
-	DEFINE_boolean fetch false "fetch from $ORIGIN before performing finish" F
+	DEFINE_boolean fetch true "fetch from $ORIGIN before performing finish" F
 	DEFINE_boolean sign false "sign the release tag cryptographically" s
 	DEFINE_string signingkey "" "use the given GPG-key for the digital signature (implies -s)" u
 	DEFINE_string message "" "use the given tag message" m
 	DEFINE_string messagefile "" "use the contents of the given file as tag message" f
-	DEFINE_boolean push false "push to $ORIGIN after performing finish" p
+	DEFINE_boolean push true "push to $ORIGIN after performing finish" p
 	DEFINE_boolean keep false "keep branch after performing finish" k
 	DEFINE_boolean notag false "don't tag this release" n
 	parse_args "$@"
@@ -265,22 +280,34 @@ cmd_finish() {
 		git_do fetch -q "$ORIGIN" "$DEVELOP_BRANCH" || \
 		  die "Could not fetch $DEVELOP_BRANCH from $ORIGIN."
 	fi
-	if has "$ORIGIN/$MASTER_BRANCH" $(git_remote_branches); then
-		require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
-	fi
-	if has "$ORIGIN/$DEVELOP_BRANCH" $(git_remote_branches); then
-		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
-	fi
+
+	require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
+	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
 	# try to merge into master
 	# in case a previous attempt to finish this release branch has failed,
 	# but the merge into master was successful, we skip it now
 	if ! git_is_branch_merged_into "$BRANCH" "$MASTER_BRANCH"; then
+		echo "Removing qualifier from version before merging into master"
+		git_do checkout "$BRANCH"
+
+		local toppom=$(get_top_pom_path)
+		local hotpomver
+		if [ "$toppom" != "" ]; then
+			hotpomver=$(get_current_pom_version $toppom)
+		fi
+		set_pom_version $toppom $(set_version_qualifier $hotpomver "") "GITFLOW HOTFIX FINISH"
+
 		git_do checkout "$MASTER_BRANCH" || \
 		  die "Could not check out $MASTER_BRANCH."
-		git_do merge --no-ff "$BRANCH" || \
-		  die "There were merge conflicts."
-		  # TODO: What do we do now?
+		if ! git_do merge --no-ff "$BRANCH"; then
+			echo "ERROR: There were merge conflicts on $MASTER_BRANCH!"
+			echo "Manually reconcile the conflicts on $MASTER_BRANCH and commit."
+			die "Please run finish again once above is done."
+		fi
+	else
+		git_do checkout "$MASTER_BRANCH" || \
+		  die "Could not check out $MASTER_BRANCH."
 	fi
 
 	if noflag notag; then
@@ -292,9 +319,14 @@ cmd_finish() {
 			local opts="-a"
 			flag sign && opts="$opts -s"
 			[ "$FLAGS_signingkey" != "" ] && opts="$opts -u '$FLAGS_signingkey'"
-			[ "$FLAGS_message" != "" ] && opts="$opts -m '$FLAGS_message'"
-			[ "$FLAGS_messagefile" != "" ] && opts="$opts -F '$FLAGS_messagefile'"
-			eval git_do tag $opts "$VERSION_PREFIX$VERSION" "$BRANCH" || \
+			if [ "$FLAGS_message" != "" ]; then
+				opts="$opts -m '$FLAGS_message'"
+			elif [ "$FLAGS_messagefile" != "" ]; then
+				opts="$opts -F '$FLAGS_messagefile'"
+			else
+				opts="$opts -m 'Hot-fix Release'"
+			fi
+			(echo $opts $tagname | xargs git_do tag)  || \
 			die "Tagging failed. Please run finish again to retry."
 		fi
 	fi
@@ -306,27 +338,43 @@ cmd_finish() {
 		git_do checkout "$DEVELOP_BRANCH" || \
 		  die "Could not check out $DEVELOP_BRANCH."
 
+		local devtoppom=$(get_top_pom_path)
+		local devpomver
+		if [ "$devtoppom" != "" ]; then
+			devpomver=$(get_current_pom_version $devtoppom)
+			#TODO Detect if a Release was started/made on develop after hotfix started
+			git_do checkout "$BRANCH"
+			set_pom_version $toppom $devpomver "GITFLOW HOTFIX FINISH"
+			git_do checkout "$DEVELOP_BRANCH"
+		fi
+
 		# TODO: Actually, accounting for 'git describe' pays, so we should
 		# ideally git merge --no-ff $tagname here, instead!
-		git_do merge --no-ff "$BRANCH" || \
-		  die "There were merge conflicts."
-		  # TODO: What do we do now?
+		if ! git_do merge --no-ff "$BRANCH"; then
+			echo "ERROR: There were merge conflicts on $DEVELOP_BRANCH!"
+			echo "Manually reconcile the conflicts on $DEVELOP_BRANCH and commit."
+			die "Please run finish again once above is done."
+		fi
 	fi
 
-	# delete branch
+
 	if noflag keep; then
+		# delete remote branch
+		git_do push "$ORIGIN" ":refs/heads/$BRANCH"
+
+		# delete branch
 		git_do branch -d "$BRANCH"
 	fi
 
 	if flag push; then
-		git_do push "$ORIGIN" "$DEVELOP_BRANCH" || \
-			die "Could not push to $DEVELOP_BRANCH from $ORIGIN."
 		git_do push "$ORIGIN" "$MASTER_BRANCH" || \
 			die "Could not push to $MASTER_BRANCH from $ORIGIN."
 		if noflag notag; then
 			git_do push --tags "$ORIGIN" || \
 				die "Could not push tags to $ORIGIN."
 		fi
+		git_do push "$ORIGIN" "$DEVELOP_BRANCH" || \
+			die "Could not push to $DEVELOP_BRANCH from $ORIGIN."
 	fi
 
 	echo
@@ -338,9 +386,9 @@ cmd_finish() {
 	fi
 	echo "- Hotfix branch has been back-merged into '$DEVELOP_BRANCH'"
 	if flag keep; then
-		echo "- Hotfix branch '$BRANCH' is still available"
+		echo "- Hotfix branch '$BRANCH' was NOT deleted"
 	else
-		echo "- Hotfix branch '$BRANCH' has been deleted"
+		echo "- Hotfix branch '$BRANCH' was deleted (both local and remote)"
 	fi
 	if flag push; then
 		echo "- '$DEVELOP_BRANCH', '$MASTER_BRANCH' and tags have been pushed to '$ORIGIN'"

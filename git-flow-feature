@@ -194,7 +194,7 @@ parse_remote_name() {
 }
 
 cmd_start() {
-	DEFINE_boolean fetch false 'fetch from origin before performing local operation' F
+	DEFINE_boolean fetch true 'fetch from origin before performing local operation' F
 	parse_args "$@"
 	BASE=${2:-$DEVELOP_BRANCH}
 	require_name_arg
@@ -222,6 +222,18 @@ cmd_start() {
 	echo "Summary of actions:"
 	echo "- A new branch '$BRANCH' was created, based on '$BASE'"
 	echo "- You are now on branch '$BRANCH'"
+	echo
+
+	local toppom=$(get_top_pom_path)
+	if [ "$toppom" != "" ]; then
+		local curver=$(get_current_pom_version $toppom)
+		echo "curver = $curver"
+		local newver=$(set_version_qualifier $curver "fea-$NAME-SNAPSHOT")
+		set_pom_version $toppom $newver
+	fi
+
+	git_do push -u "$ORIGIN" "$BRANCH"
+
 	echo ""
 	echo "Now, start committing on your feature. When done, use:"
 	echo ""
@@ -230,7 +242,7 @@ cmd_start() {
 }
 
 cmd_finish() {
-	DEFINE_boolean fetch false "fetch from $ORIGIN before performing finish" F
+	DEFINE_boolean fetch true "fetch from $ORIGIN before performing finish" F
 	DEFINE_boolean rebase false "rebase instead of merge" r
 	DEFINE_boolean keep false "keep branch after performing finish" k
 	DEFINE_boolean force_delete false "force delete feature branch after finish" D
@@ -285,19 +297,16 @@ cmd_finish() {
 	require_clean_working_tree
 
 	# update local repo with remote changes first, if asked
-	if has "$ORIGIN/$BRANCH" $(git_remote_branches); then
+	if has "$ORIGIN/$BRANCH" "$(git_remote_branches)"; then
 		if flag fetch; then
 			git_do fetch -q "$ORIGIN" "$BRANCH"
 			git_do fetch -q "$ORIGIN" "$DEVELOP_BRANCH"
 		fi
-	fi
 
-	if has "$ORIGIN/$BRANCH" $(git_remote_branches); then
 		require_branches_equal "$BRANCH" "$ORIGIN/$BRANCH"
 	fi
-	if has "$ORIGIN/$DEVELOP_BRANCH" $(git_remote_branches); then
-		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
-	fi
+
+	require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 
 	# if the user wants to rebase, do that first
 	if flag rebase; then
@@ -310,8 +319,44 @@ cmd_finish() {
 		fi
 	fi
 
+
+	# What is the pom version on the feature branch?
+	git_do checkout "$BRANCH"
+
+	local toppom=$(get_top_pom_path)
+	local featpomver
+	if [ "$toppom" != "" ]; then
+		featpomver=$(get_current_pom_version $toppom)
+	fi
+
 	# merge into BASE
 	git_do checkout "$DEVELOP_BRANCH"
+
+	local devtoppom=$(get_top_pom_path)
+	local devpomver
+	if [ "$toppom" != "" ]; then
+		devpomver=$(get_current_pom_version $toppom)
+		devbasever=$(remove_version_qualifier $devpomver)
+		featbasever=$(remove_version_qualifier $featpomver)
+		if [ "$featbasever" != "$devbasever" ]; then
+			# Feature version number not same as dev-version (next planned release #)
+			# Either a release was started after this feature was started, or
+			# the feature is intended for future release.
+			echo "Feature version $featbasever NOT SAME as develop version $devbasever!"
+			echo "If feature version is older, it means a release was made/started since"
+			echo "start of the feature.  MERGE develop into the feature then try again."
+			echo "If feature version is newer, it means that develop is not yet ready;"
+			echo "Either cut a release or set the version on develop to be same as the"
+			echo "feature to indicate that feature version is the next planned release."
+			exit 1
+		else
+			git_do checkout "$BRANCH"
+			set_pom_version $toppom $devpomver
+			git_do checkout "$DEVELOP_BRANCH"
+		fi
+
+	fi
+
 	if [ "$(git rev-list -n2 "$DEVELOP_BRANCH..$BRANCH" | wc -l)" -eq 1 ]; then
 		git_do merge --ff "$BRANCH"
 	else
@@ -350,17 +395,15 @@ helper_finish_cleanup() {
 	require_clean_working_tree
 
 	# delete branch
-	if flag fetch; then
-		git_do push "$ORIGIN" ":refs/heads/$BRANCH"
-	fi
-	
-	
 	if noflag keep; then
 		if flag force_delete; then
 			git_do branch -D "$BRANCH"
 		else
 			git_do branch -d "$BRANCH"
 		fi
+		
+		# delete remote branch
+		git_do push "$ORIGIN" ":refs/heads/$BRANCH"
 	fi
 
 	echo
@@ -368,9 +411,9 @@ helper_finish_cleanup() {
 	echo "- The feature branch '$BRANCH' was merged into '$DEVELOP_BRANCH'"
 	#echo "- Merge conflicts were resolved"		# TODO: Add this line when it's supported
 	if flag keep; then
-		echo "- Feature branch '$BRANCH' is still available"
+		echo "- Feature branch '$BRANCH' was NOT deleted"
 	else
-		echo "- Feature branch '$BRANCH' has been removed"
+		echo "- Feature branch '$BRANCH' was deleted (both local and remote)"
 	fi
 	echo "- You are now on branch '$DEVELOP_BRANCH'"
 	echo
