@@ -336,7 +336,7 @@ get_top_pom_path() {
 
 get_current_pom_version() {
 	local toppom="$1"
-        mvn -o -f $toppom org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version 2>&1 | grep -E '^\d+(\.\d+)*(-.+)?$'
+        mvn -o -f $toppom org.apache.maven.plugins:maven-help-plugin:evaluate -Dexpression=project.version 2>&1 | grep -E '^\d+(\.\d+)*(-.+)?$'
 }
 
 get_active_branch() {

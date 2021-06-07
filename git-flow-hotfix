@@ -187,16 +187,11 @@ cmd_start() {
 	# increment hotfix patch-version
 	local toppom=$(get_top_pom_path)
 	if [ "$toppom" != "" ]; then
-		local curver=$(get_current_pom_version $toppom)
-		echo "curver = $curver"
-		curpatch=$(get_least_version $curver)
-		newpatch=$(expr $curpatch + 1)
-		newver=$(set_least_version $curver $newpatch)
-		newver=$(set_version_qualifier $newver "fix-SNAPSHOT")
-		set_pom_version $toppom $newver
+		newver="${VERSION}-fix-SNAPSHOT"
+		set_pom_version $toppom "$newver"
 	fi
 
-	git push -u "$ORIGIN" "$BRANCH"
+	git_do push -u "$ORIGIN" "$BRANCH"
 
 	echo
 	echo "Follow-up actions:"
@@ -292,11 +287,9 @@ cmd_finish() {
 		git_do checkout "$BRANCH"
 
 		local toppom=$(get_top_pom_path)
-		local hotpomver
 		if [ "$toppom" != "" ]; then
-			hotpomver=$(get_current_pom_version $toppom)
+			set_pom_version $toppom "$VERSION" "GITFLOW HOTFIX FINISH"
 		fi
-		set_pom_version $toppom $(set_version_qualifier $hotpomver "") "GITFLOW HOTFIX FINISH"
 
 		git_do checkout "$MASTER_BRANCH" || \
 		  die "Could not check out $MASTER_BRANCH."
@@ -326,7 +319,7 @@ cmd_finish() {
 			else
 				opts="$opts -m 'Hot-fix Release'"
 			fi
-			(echo $opts $tagname | xargs git_do tag)  || \
+			(echo $opts $tagname | xargs git tag)  || \
 			die "Tagging failed. Please run finish again to retry."
 		fi
 	fi
@@ -338,13 +331,12 @@ cmd_finish() {
 		git_do checkout "$DEVELOP_BRANCH" || \
 		  die "Could not check out $DEVELOP_BRANCH."
 
-		local devtoppom=$(get_top_pom_path)
-		local devpomver
-		if [ "$devtoppom" != "" ]; then
-			devpomver=$(get_current_pom_version $devtoppom)
+		local toppom=$(get_top_pom_path)
+		if [ "$toppom" != "" ]; then
+			local devver=$(get_current_pom_version $toppom)
 			#TODO Detect if a Release was started/made on develop after hotfix started
 			git_do checkout "$BRANCH"
-			set_pom_version $toppom $devpomver "GITFLOW HOTFIX FINISH"
+			set_pom_version $toppom "$devver" "GITFLOW HOTFIX FINISH"
 			git_do checkout "$DEVELOP_BRANCH"
 		fi
 

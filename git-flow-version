@@ -37,7 +37,7 @@
 #
 
 init() {
-	GITFLOW_VERSION=0.8.0-rg-2021
+	GITFLOW_VERSION=0.8.1-rg-2021
 }
 
 usage() {
