@@ -187,8 +187,8 @@ cmd_start() {
 	# increment hotfix patch-version
 	local toppom=$(get_top_pom_path)
 	if [ "$toppom" != "" ]; then
-		newver="${VERSION}-fix-SNAPSHOT"
-		set_pom_version $toppom "$newver"
+		local newver="${VERSION}-SNAPSHOT"
+		set_pom_version "$toppom" "$newver"
 	fi
 
 	git_do push -u "$ORIGIN" "$BRANCH"
@@ -288,7 +288,7 @@ cmd_finish() {
 
 		local toppom=$(get_top_pom_path)
 		if [ "$toppom" != "" ]; then
-			set_pom_version $toppom "$VERSION" "GITFLOW HOTFIX FINISH"
+			set_pom_version "$toppom" "$VERSION" "GITFLOW HOTFIX FINISH"
 		fi
 
 		git_do checkout "$MASTER_BRANCH" || \
@@ -333,10 +333,10 @@ cmd_finish() {
 
 		local toppom=$(get_top_pom_path)
 		if [ "$toppom" != "" ]; then
-			local devver=$(get_current_pom_version $toppom)
+			local devver=$(get_current_pom_version "$toppom")
 			#TODO Detect if a Release was started/made on develop after hotfix started
 			git_do checkout "$BRANCH"
-			set_pom_version $toppom "$devver" "GITFLOW HOTFIX FINISH"
+			set_pom_version "$toppom" "$devver" "GITFLOW HOTFIX FINISH"
 			git_do checkout "$DEVELOP_BRANCH"
 		fi
 

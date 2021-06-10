@@ -396,14 +396,15 @@ helper_finish_cleanup() {
 
 	# delete branch
 	if noflag keep; then
+		# delete remote branch first 
+		# (otherwise may get "not yet merged" warning when deleting local branch below).
+		git_do push "$ORIGIN" ":refs/heads/$BRANCH"
+
 		if flag force_delete; then
 			git_do branch -D "$BRANCH"
 		else
 			git_do branch -d "$BRANCH"
 		fi
-		
-		# delete remote branch
-		git_do push "$ORIGIN" ":refs/heads/$BRANCH"
 	fi
 
 	echo

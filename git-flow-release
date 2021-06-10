@@ -178,19 +178,19 @@ cmd_start() {
 	local toppom=$(get_top_pom_path)
 	if [ "$toppom" != "" ]; then
 		# Change version on release branch
-		local newver=$(echo ${VERSION}-SNAPSHOT)
-		set_pom_version $toppom $newver
+		local newver="${VERSION}-SNAPSHOT"
+		set_pom_version "$toppom" "$newver"
 
 		local qual=$(echo $VERSION | tr '_' '-' | cut -d '-' -f2-)
 		if [ "$qual" = "" ]; then
 			# increment develop versions to next-release version
 			git_do checkout "$BASE"
 
-			curver=$(get_current_pom_version $toppom)
+			curver=$(get_current_pom_version "$toppom")
 			echo "curver = $curver"
-			local curminor=$(get_2ndleast_version $curver)
-			newver=$(set_2ndleast_version $curver $(expr $curminor + 1))
-			set_pom_version $toppom $newver
+			local curminor=$(get_2ndleast_version "$curver")
+			newver=$(set_2ndleast_version "$curver" $(expr $curminor + 1))
+			set_pom_version "$toppom" "$newver"
 
 			git_do push "$ORIGIN" "$BASE"
 			echo "- Branch '$BASE' has been pushed to '$ORIGIN'"
@@ -256,8 +256,8 @@ cmd_finish() {
 		local toppom=$(get_top_pom_path)
 		local relpomver
 		if [ "$toppom" != "" ]; then
-			relpomver=$(get_current_pom_version $toppom)
-			set_pom_version $toppom $(echo $relpomver | sed 's/-SNAPSHOT$//') "GITFLOW RELEASE FINISH"
+			relpomver=$(get_current_pom_version "$toppom")
+			set_pom_version "$toppom" $(echo "$relpomver" | sed 's/-SNAPSHOT$//') "GITFLOW RELEASE FINISH"
 		fi
 		git_do checkout "$MASTER_BRANCH" || \
 		  die "Could not check out $MASTER_BRANCH."
@@ -312,9 +312,9 @@ cmd_finish() {
 		local devtoppom=$(get_top_pom_path)
 		local devpomver
 		if [ "$devtoppom" != "" ]; then
-			devpomver=$(get_current_pom_version $devtoppom)
+			devpomver=$(get_current_pom_version "$devtoppom")
 			git_do checkout "$BRANCH"
-			set_pom_version $toppom $devpomver "GITFLOW RELEASE FINISH"
+			set_pom_version "$toppom" "$devpomver" "GITFLOW RELEASE FINISH"
 			git_do checkout "$DEVELOP_BRANCH"
 		fi
 
