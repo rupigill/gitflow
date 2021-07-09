@@ -297,7 +297,7 @@ cmd_finish() {
 			else
 				opts="$opts -m 'Hot-fix Release'"
 			fi
-			(echo $opts $tagname | xargs git_do tag)  || \
+			(echo $opts $tagname | xargs git tag)  || \
 			die "Tagging failed. Please run finish again to retry."
 		fi
 	fi
